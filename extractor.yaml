@@ -1,2 +1,4 @@
 concerts:
-  css: '.concerts'
+    css: 'table.concerts tr'
+    multiple: true
+    type: Text
