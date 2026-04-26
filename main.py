@@ -1,5 +1,6 @@
 import smtplib
 import ssl
+import time
 
 import requests
 import selectorlib
@@ -59,11 +60,13 @@ def read():
 
 
 if __name__ == "__main__":
-    scraped = scrape(URL)
-    extracted = extract(scraped)
-    print(extracted)
+    while True:
+        scraped = scrape(URL)
+        extracted = extract(scraped)
+        print(extracted)
 
-    if extracted != "No upcoming events":
-        if extracted not in "data.txt":
-            store(extracted)
-            send_email()
+        if extracted != "No upcoming events":
+            if extracted not in "data.txt":
+                store(extracted)
+                send_email()
+        time.sleep(10)
