@@ -6,11 +6,16 @@ import requests
 import selectorlib
 #import smtplib, ssl
 #import os
+from bs4 import BeautifulSoup
+import sqlite3
 
-
-"INSERT INTO concerts VALUES('Katseye','July 4th','Climate Pledge Arena')"
-"SELECT * FROM concerts WHERE Band='Katseye'"
-"DELETE FROM concerts WHERE "
+connection = sqlite3.connect('data.db')
+cursor = connection.cursor()
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS concerts 
+    (band TEXT, date TEXT, venue TEXT)
+""")
+connection.commit()
 
 URL = "https://www.events12.com/seattle/"
 HEADERS = {
@@ -26,15 +31,22 @@ def scrape(url):
 
 def extract(source):
     extractor = selectorlib.Extractor.from_yaml_file("extractor.yaml")
-    value = extractor.extract(source)["concerts"]
+    raw_data = extractor.extract(source)["concerts"]
 
-    # Filter out headers or empty rows and clean up whitespace
-    # This joins the list into a single string with line breaks
-    if value:
-        # We skip the first two rows because they are the "Concerts" header and the Image
-        cleaned_data = "\n".join([line.strip() for line in value[2:] if line.strip()])
-        return cleaned_data
-    return ""
+    cleaned_concerts = []
+    for item in raw_data:
+        # Check if the dictionary has all the keys we need
+        # This automatically skips the header/image rows which won't have 3 tds
+        if item.get('date') and item.get('band') and item.get('venue'):
+            date = item['date'].strip()
+            band = item['band'].strip()
+            venue = item['venue'].strip()
+
+            # Filter out the "more concerts" footer link
+            if "more concerts" not in band.lower():
+                cleaned_concerts.append((date, band, venue))
+
+    return cleaned_concerts
 
 """
 def send_email(message):
@@ -55,23 +67,39 @@ def send_email(message):
 def send_email():
     print("Sending email...")
 
-def store(extracted):
-    with open("data.txt", "w", encoding="utf-8") as file:
-        file.write(extracted)
+def store(date, band, venue):
+    """Inserts a single concert into the database."""
+    cursor = connection.cursor()
+    # Ensure the column order matches your database schema
+    cursor.execute("INSERT INTO concerts VALUES(?,?,?)", (band, date, venue))
+    connection.commit()
 
-def read():
-    with open("data.txt", "r", encoding="utf-8") as file:
-        return file.read()
+def read(date, band, venue):
+    """Checks if a specific concert already exists in the database."""
+    cursor = connection.cursor()
+    # We query by all three fields to ensure uniqueness
+    cursor.execute("SELECT * FROM concerts WHERE band=? AND date=? AND venue=?", (band, date, venue))
+    rows = cursor.fetchall()
+    return rows
 
 
 if __name__ == "__main__":
     while True:
         scraped = scrape(URL)
-        extracted = extract(scraped)
-        print(extracted)
+        extracted_data = extract(scraped) # Assuming this returns a list of tuples/lists
 
-        if extracted != "No upcoming events":
-            if extracted not in "data.txt":
-                store(extracted)
-                send_email()
+        # If extracted_data is a list of concerts:
+        for event in extracted_data:
+            # Clean and assign the variables
+            # Example: event = ["April 30", "Treaty Oak Revival", "Wamu"]
+            date, band, venue = [item.strip() for item in event]
+
+            if band != "No upcoming events":
+                row = read(date, band, venue)
+                if not row:
+                    store(date, band, venue)
+                    send_email()
+                    print(f"Stored new event: {band}")
+
+        print("Scrape cycle complete. Sleeping...")
         time.sleep(10)
