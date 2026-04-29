@@ -1,0 +1,14 @@
+concerts:
+    css: 'table.concerts tr'
+    multiple: true
+    type: BaseElement
+    children:
+        date:
+            css: 'td:nth-child(1)'
+            type: Text
+        band:
+            css: 'td:nth-child(2)'
+            type: Text
+        venue:
+            css: 'td:nth-child(3)'
+            type: Text
